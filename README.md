@@ -52,6 +52,17 @@ java -jar shiro_attack-1.0-all.jar
 
 在 jar 同级目录创建 `data/shiro_keys.txt` 存放密钥字典，`lib/` 目录存放 CommonsBeanutils 依赖。
 
+## 更新日志
+### ShiroAttack2 Bypass v1.1 — 20260413
+
+- **Cookie**：合并多行 Cookie、避免 hutool 多头发 rememberMe 被丢；主标签与子标签请求方式对齐。
+- **性能**：主标签统一 hutool、修复慢读与超时，界面操作放到后台线程，避免卡死。
+- **利用链**：去掉误注入 Base64 的 `insertSpecialChars`；类加载兼容 JDK 9+；Gadget 解析与原版对齐。
+- **Header 绕过**：动态类改为 JDK6 字节码，目标 JDK7 可加载；回显改走响应头 `X-C`，不写 Body，减少 500；混淆勾选即始终混淆，超长只提示不自动关。
+- **体验**：绕过页 UI 可缩放；子标签识别「密钥/利用链」时同时认输入框和下拉框，不必重复爆破。
+
+
+
 ## 免责声明
 
 该工具仅用于安全自查检测由于传播、利用此工具所提供的信息而造成的任何直接或者间接的后果及损失，均由使用者本人负责，作者不为此承担任何责任。

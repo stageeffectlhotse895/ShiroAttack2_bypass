@@ -1,7 +1,7 @@
 
 package com.summersec.attack.UI;
 
-import com.summersec.attack.utils.HttpUtil_bak;
+import com.summersec.attack.utils.HttpUtil;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -19,7 +19,7 @@ public class Main extends Application {
         Scene scene = new Scene(root);
         primaryStage.setScene(scene);
         primaryStage.show();
-        HttpUtil_bak.disableSslVerification();
+        HttpUtil.disableSslVerification();
     }
 
     public static void main(String[] args) {

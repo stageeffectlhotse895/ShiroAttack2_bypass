@@ -91,6 +91,7 @@ public class GadgetsK {
         clazz.makeClassInitializer().insertAfter(cmd);
         CtClass superC = pool.get(abstTranslet.getName());
         clazz.setSuperclass(superC);
+        clazz.getClassFile().setMajorVersion(50);
 
         byte[] classBytes = clazz.toBytecode();
 
@@ -136,6 +137,7 @@ public class GadgetsK {
 
         CtClass superC = pool.get(abstTranslet.getName());
         clazz.setSuperclass(superC);
+        clazz.getClassFile().setMajorVersion(50);
 
         byte[] classBytes = clazz.toBytecode();
 

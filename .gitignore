@@ -1,1 +1,10 @@
-releases/*
+.idea/**
+target/**
+out
+src/test/java/**
+tools/**
+vulhub_shiro/
+releases/
+.vscode/
+data/
+logs

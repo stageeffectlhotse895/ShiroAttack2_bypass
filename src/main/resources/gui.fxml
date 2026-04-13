@@ -7,7 +7,7 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.text.*?>
 
-<VBox maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="800.0" prefWidth="1000.0" xmlns="http://javafx.com/javafx/11.0.2" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.summersec.attack.UI.MainController">
+<VBox minHeight="650.0" minWidth="900.0" prefHeight="800.0" prefWidth="1000.0" xmlns="http://javafx.com/javafx/11.0.2" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.summersec.attack.UI.MainController">
     <children>
         <MenuBar>
             <menus>
@@ -36,7 +36,7 @@
                                 <Font size="14.0" />
                             </font>
                         </Label>
-                        <TextField fx:id="targetAddress" prefHeight="27.0" prefWidth="576.0" />
+                        <TextField fx:id="targetAddress" prefHeight="27.0" HBox.hgrow="ALWAYS" />
                         <Label layoutX="20.0" layoutY="23.0" prefHeight="17.0" prefWidth="82.0" text="超时设置/s">
                             <HBox.margin>
                                 <Insets top="4.0" />
@@ -96,7 +96,7 @@
                                 <Font size="14.0" />
                             </font>
                         </Label>
-                        <TextField fx:id="shiroKey" prefHeight="25.0" prefWidth="294.0" />
+                        <TextField fx:id="shiroKey" prefHeight="25.0" HBox.hgrow="ALWAYS" />
                         <CheckBox fx:id="aesGcmOpt" mnemonicParsing="false" prefHeight="18.0" prefWidth="109.0" text="AES GCM">
                             <HBox.margin>
                                 <Insets top="3.0" />
@@ -163,144 +163,118 @@
                 <Font size="14.0" />
             </font>
         </TitledPane>
-        <TabPane prefHeight="646.0" prefWidth="990.0" tabClosingPolicy="ALL_TABS">
+        <TabPane prefWidth="990.0" tabClosingPolicy="ALL_TABS" VBox.vgrow="ALWAYS">
             <tabs>
                 <Tab text="检测日志">
                     <content>
                         <VBox>
                             <children>
-                                <HBox prefHeight="513.0" prefWidth="990.0" spacing="10.0">
-                                    <children>
-                                        <TextArea fx:id="logTextArea" prefHeight="430.0" prefWidth="990.0">
-                                            <font>
-                                                <Font size="16.0" />
-                                            </font>
-                                            <HBox.margin>
-                                                <Insets left="10.0" right="10.0" />
-                                            </HBox.margin></TextArea>
-                                    </children>
-                                    <padding>
-                                        <Insets top="10.0" />
-                                    </padding>
-                                </HBox>
-                            </children></VBox>
+                                <TextArea fx:id="logTextArea" VBox.vgrow="ALWAYS">
+                                    <font>
+                                        <Font size="16.0" />
+                                    </font>
+                                    <VBox.margin>
+                                        <Insets left="10.0" right="10.0" top="10.0" />
+                                    </VBox.margin>
+                                </TextArea>
+                            </children>
+                        </VBox>
                     </content>
                 </Tab>
                 <Tab text="命令执行">
                     <content>
                         <VBox>
                             <children>
-                                <HBox prefHeight="44.0" prefWidth="1000.0" spacing="10.0">
+                                <HBox spacing="10.0" alignment="CENTER_LEFT">
                                     <children>
-                                        <Label prefHeight="19.0" prefWidth="69.0" text="输入命令">
+                                        <Label text="输入命令">
                                             <HBox.margin>
-                                                <Insets left="10.0" right="10.0" top="2.0" />
+                                                <Insets left="10.0" />
                                             </HBox.margin>
                                             <font>
                                                 <Font size="14.0" />
                                             </font>
                                         </Label>
-                                        <TextField fx:id="exCommandText" prefHeight="25.0" prefWidth="763.0">
-                                            <opaqueInsets>
-                                                <Insets />
-                                            </opaqueInsets>
-                                            <HBox.margin>
-                                                <Insets left="10.0" right="10.0" />
-                                            </HBox.margin>
+                                        <TextField fx:id="exCommandText" HBox.hgrow="ALWAYS">
                                             <font>
                                                 <Font size="14.0" />
                                             </font>
                                         </TextField>
-                                        <Button fx:id="executeCmdBtn" mnemonicParsing="false" onAction="#executeCmdBtn" prefHeight="25.0" prefWidth="92.0" text="执行">
+                                        <Button fx:id="executeCmdBtn" mnemonicParsing="false" onAction="#executeCmdBtn" text="执行" minWidth="56.0">
                                             <HBox.margin>
-                                                <Insets left="10.0" right="10.0" />
+                                                <Insets right="10.0" />
                                             </HBox.margin>
                                             <font>
                                                 <Font size="14.0" />
-                                            </font></Button>
+                                            </font>
+                                        </Button>
                                     </children>
                                     <padding>
-                                        <Insets bottom="5.0" top="5.0" />
+                                        <Insets bottom="5.0" top="8.0" />
                                     </padding>
-                                    <VBox.margin>
-                                        <Insets top="10.0" />
-                                    </VBox.margin>
                                 </HBox>
-                                <TextArea fx:id="execOutputArea" prefHeight="454.0" prefWidth="970.0">
+                                <TextArea fx:id="execOutputArea" VBox.vgrow="ALWAYS">
                                     <VBox.margin>
-                                        <Insets left="10.0" right="10.0" top="10.0" />
+                                        <Insets left="10.0" right="10.0" bottom="5.0" />
                                     </VBox.margin>
                                     <font>
                                         <Font size="16.0" />
-                                    </font></TextArea>
+                                    </font>
+                                </TextArea>
                             </children>
                         </VBox>
                     </content>
                 </Tab>
                 <Tab text="内存马">
                     <content>
-                        <VBox prefHeight="461.0" prefWidth="990.0">
+                        <VBox>
                             <children>
-                                <HBox prefHeight="37.0" prefWidth="990.0" spacing="10.0">
+                                <HBox spacing="8.0" alignment="CENTER_LEFT">
                                     <children>
-                                        <Label text="内存马类型">
+                                        <Label text="类型">
                                             <HBox.margin>
-                                                <Insets left="10.0" top="3.0" />
+                                                <Insets left="10.0" />
                                             </HBox.margin>
                                             <font>
-                                                <Font name="System Font" size="14.0" />
+                                                <Font size="14.0" />
                                             </font>
                                         </Label>
-                                        <ComboBox fx:id="memShellOpt" prefHeight="25.0" prefWidth="164.0">
-                                            <HBox.margin>
-                                                <Insets left="10.0" right="10.0" />
-                                            </HBox.margin></ComboBox>
+                                        <ComboBox fx:id="memShellOpt" prefWidth="164.0" />
                                         <Label text="路径">
-                                            <HBox.margin>
-                                                <Insets left="10.0" top="3.0" />
-                                            </HBox.margin>
                                             <font>
                                                 <Font size="14.0" />
                                             </font>
                                         </Label>
-                                        <TextField fx:id="shellPathText" prefHeight="25.0" prefWidth="316.0">
-                                            <HBox.margin>
-                                                <Insets left="10.0" right="10.0" />
-                                            </HBox.margin>
-                                        </TextField>
+                                        <TextField fx:id="shellPathText" HBox.hgrow="ALWAYS" />
                                         <Label text="密码">
-                                            <HBox.margin>
-                                                <Insets top="3.0" />
-                                            </HBox.margin>
                                             <font>
                                                 <Font size="14.0" />
                                             </font>
                                         </Label>
-                                        <TextField fx:id="shellPassText" prefHeight="25.0" prefWidth="94.0">
+                                        <TextField fx:id="shellPassText" prefWidth="94.0" />
+                                        <Button fx:id="injectShellBtn" mnemonicParsing="false" onAction="#injectShellBtn" text="执行注入" minWidth="72.0">
                                             <HBox.margin>
-                                                <Insets left="10.0" right="10.0" />
-                                            </HBox.margin></TextField>
-                                        <Button fx:id="injectShellBtn" mnemonicParsing="false" onAction="#injectShellBtn" prefHeight="25.0" prefWidth="128.0" text="执行注入">
+                                                <Insets right="10.0" />
+                                            </HBox.margin>
                                             <font>
                                                 <Font size="14.0" />
-                                            </font></Button>
+                                            </font>
+                                        </Button>
                                     </children>
-                                    <VBox.margin>
-                                        <Insets top="10.0" />
-                                    </VBox.margin>
                                     <padding>
-                                        <Insets top="5.0" />
+                                        <Insets top="8.0" bottom="5.0" />
                                     </padding>
                                 </HBox>
-                                <TextArea fx:id="InjOutputArea" prefHeight="433.0" prefWidth="990.0">
+                                <TextArea fx:id="InjOutputArea" VBox.vgrow="ALWAYS">
                                     <VBox.margin>
-                                        <Insets left="10.0" right="10.0" top="10.0" />
+                                        <Insets left="10.0" right="10.0" bottom="5.0" />
                                     </VBox.margin>
                                     <font>
                                         <Font size="16.0" />
                                     </font>
                                 </TextArea>
-                            </children></VBox>
+                            </children>
+                        </VBox>
                     </content>
                 </Tab>
                 <Tab text="key生成">
@@ -326,53 +300,52 @@
                 </Tab>
                 <Tab text="Header绕过">
                     <content>
-                        <VBox prefHeight="461.0" prefWidth="990.0" spacing="3.0">
+                        <VBox spacing="4.0">
+                            <padding><Insets top="6.0" left="8.0" right="8.0" bottom="4.0" /></padding>
                             <children>
-                                <HBox spacing="6.0" prefHeight="30.0">
+                                <HBox spacing="6.0" alignment="CENTER_LEFT">
                                     <children>
-                                        <Label text="最大Cookie长度"><HBox.margin><Insets left="10.0" top="3.0" /></HBox.margin><font><Font size="14.0" /></font></Label>
-                                        <TextField fx:id="maxCookieLenText" prefWidth="65.0" />
-                                        <Button mnemonicParsing="false" onAction="#bypassCheckShiro" text="检测Shiro"><font><Font size="14.0" /></font></Button>
-                                        <Button mnemonicParsing="false" onAction="#bypassCrackKey" text="爆破密钥"><font><Font size="14.0" /></font></Button>
-                                        <Button mnemonicParsing="false" onAction="#bypassCrackSpcKey" text="指定密钥"><font><Font size="14.0" /></font></Button>
-                                        <Button mnemonicParsing="false" onAction="#bypassCrackGadget" text="爆破利用链"><font><Font size="14.0" /></font></Button>
-                                        <Button mnemonicParsing="false" onAction="#bypassCrackSpcGadget" text="指定利用链"><font><Font size="14.0" /></font></Button>
-                                        <Button mnemonicParsing="false" onAction="#bypassStop" text="停止"><font><Font size="14.0" /></font></Button>
-                                        <CheckBox fx:id="bypassObfuscateOpt" mnemonicParsing="false" selected="true" text="混淆"><HBox.margin><Insets top="3.0" /></HBox.margin><font><Font size="14.0" /></font></CheckBox>
-                                    </children>
-                                    <VBox.margin><Insets top="8.0" /></VBox.margin>
-                                </HBox>
-                                <HBox spacing="6.0" prefHeight="30.0">
-                                    <children>
-                                        <Label text="命令"><HBox.margin><Insets left="10.0" top="3.0" /></HBox.margin><font><Font size="14.0" /></font></Label>
-                                        <TextField fx:id="bypassCmdText" prefWidth="700.0"><font><Font size="14.0" /></font></TextField>
-                                        <ComboBox fx:id="bypassEchoOpt" prefWidth="110.0" />
-                                        <Button mnemonicParsing="false" onAction="#bypassExecBlind" text="盲执行"><font><Font size="14.0" /></font></Button>
-                                        <Button mnemonicParsing="false" onAction="#bypassExecEcho" text="回显执行"><font><Font size="14.0" /></font></Button>
+                                        <Label text="Cookie限长" minWidth="60.0"><font><Font size="13.0" /></font></Label>
+                                        <TextField fx:id="maxCookieLenText" prefWidth="55.0" maxWidth="55.0" />
+                                        <Button mnemonicParsing="false" onAction="#bypassCheckShiro" text="检测Shiro"><font><Font size="13.0" /></font></Button>
+                                        <Button mnemonicParsing="false" onAction="#bypassCrackKey" text="爆破密钥"><font><Font size="13.0" /></font></Button>
+                                        <Button mnemonicParsing="false" onAction="#bypassCrackSpcKey" text="指定密钥"><font><Font size="13.0" /></font></Button>
+                                        <Button mnemonicParsing="false" onAction="#bypassCrackGadget" text="爆破利用链"><font><Font size="13.0" /></font></Button>
+                                        <Button mnemonicParsing="false" onAction="#bypassCrackSpcGadget" text="指定利用链"><font><Font size="13.0" /></font></Button>
+                                        <Button mnemonicParsing="false" onAction="#bypassStop" text="停止" style="-fx-text-fill: #c0392b;"><font><Font size="13.0" /></font></Button>
+                                        <CheckBox fx:id="bypassObfuscateOpt" mnemonicParsing="false" selected="true" text="混淆"><HBox.margin><Insets top="1.0" /></HBox.margin><font><Font size="13.0" /></font></CheckBox>
                                     </children>
                                 </HBox>
-                                <HBox spacing="6.0" prefHeight="30.0">
+                                <HBox spacing="6.0" alignment="CENTER_LEFT">
                                     <children>
-                                        <Label text="注入方式"><HBox.margin><Insets left="10.0" top="3.0" /></HBox.margin><font><Font size="14.0" /></font></Label>
-                                        <ComboBox fx:id="bypassMethodOpt" prefWidth="120.0" />
-                                        <Label text="分块"><HBox.margin><Insets top="3.0" /></HBox.margin><font><Font size="14.0" /></font></Label>
-                                        <TextField fx:id="chunkSizeText" prefWidth="55.0" />
-                                        <Button mnemonicParsing="false" onAction="#bypassCalcChunk" text="自动计算"><font><Font size="14.0" /></font></Button>
-                                        <Label text="间隔ms"><HBox.margin><Insets top="3.0" /></HBox.margin><font><Font size="14.0" /></font></Label>
-                                        <TextField fx:id="bypassDelayText" prefWidth="55.0" />
-                                        <Label text="文件路径"><HBox.margin><Insets top="3.0" /></HBox.margin><font><Font size="14.0" /></font></Label>
-                                        <TextField fx:id="bypassFilePathText" prefWidth="110.0" />
-                                        <Button mnemonicParsing="false" onAction="#bypassInject" text="注入内存马"><font><Font size="14.0" /></font></Button>
+                                        <Label text="命令" minWidth="28.0"><font><Font size="13.0" /></font></Label>
+                                        <TextField fx:id="bypassCmdText" HBox.hgrow="ALWAYS"><font><Font size="13.0" /></font></TextField>
+                                        <ComboBox fx:id="bypassEchoOpt" prefWidth="100.0" minWidth="100.0" />
+                                        <Button mnemonicParsing="false" onAction="#bypassExecBlind" text="盲执行" minWidth="56.0"><font><Font size="13.0" /></font></Button>
+                                        <Button mnemonicParsing="false" onAction="#bypassExecEcho" text="回显执行" minWidth="68.0"><font><Font size="13.0" /></font></Button>
                                     </children>
                                 </HBox>
-                                <HBox spacing="6.0">
+                                <HBox spacing="6.0" alignment="CENTER_LEFT">
                                     <children>
-                                        <Label text="内存马Base64"><HBox.margin><Insets left="10.0" top="3.0" /></HBox.margin><font><Font size="14.0" /></font></Label>
-                                        <TextArea fx:id="memshellB64Area" prefHeight="50.0" prefWidth="850.0" wrapText="true"><HBox.margin><Insets right="10.0" /></HBox.margin></TextArea>
+                                        <Label text="注入" minWidth="28.0"><font><Font size="13.0" /></font></Label>
+                                        <ComboBox fx:id="bypassMethodOpt" prefWidth="115.0" minWidth="90.0" />
+                                        <Label text="分块" minWidth="28.0"><font><Font size="13.0" /></font></Label>
+                                        <TextField fx:id="chunkSizeText" prefWidth="48.0" maxWidth="48.0" />
+                                        <Button mnemonicParsing="false" onAction="#bypassCalcChunk" text="自动计算"><font><Font size="13.0" /></font></Button>
+                                        <Label text="间隔ms" minWidth="42.0"><font><Font size="13.0" /></font></Label>
+                                        <TextField fx:id="bypassDelayText" prefWidth="48.0" maxWidth="48.0" />
+                                        <Label text="路径" minWidth="28.0"><font><Font size="13.0" /></font></Label>
+                                        <TextField fx:id="bypassFilePathText" prefWidth="100.0" HBox.hgrow="ALWAYS" />
+                                        <Button mnemonicParsing="false" onAction="#bypassInject" text="注入内存马" minWidth="80.0"><font><Font size="13.0" /></font></Button>
                                     </children>
                                 </HBox>
-                                <TextArea fx:id="bypassOutputArea" prefHeight="300.0" prefWidth="970.0">
-                                    <VBox.margin><Insets left="10.0" right="10.0" /></VBox.margin>
+                                <HBox spacing="6.0" alignment="TOP_LEFT">
+                                    <children>
+                                        <Label text="Base64" minWidth="42.0"><HBox.margin><Insets top="4.0" /></HBox.margin><font><Font size="13.0" /></font></Label>
+                                        <TextArea fx:id="memshellB64Area" prefHeight="42.0" wrapText="true" HBox.hgrow="ALWAYS" />
+                                    </children>
+                                </HBox>
+                                <TextArea fx:id="bypassOutputArea" VBox.vgrow="ALWAYS">
                                     <font><Font size="14.0" /></font>
                                 </TextArea>
                             </children>

@@ -164,10 +164,15 @@ public class MainController {
             this.initAttack();
         }
         if (!spcShiroKey.equals("")) {
-            boolean flag = this.attackService.gadgetCrack((String)this.gadgetOpt.getValue(), (String)this.echoOpt.getValue(), spcShiroKey);
-            if (!flag) {
-                this.logTextArea.appendText(Utils.log("未找到构造链"));
-            }
+            final String gadget = (String) this.gadgetOpt.getValue();
+            final String echo = (String) this.echoOpt.getValue();
+            final AttackService svc = this.attackService;
+            new Thread(() -> {
+                boolean flag = svc.gadgetCrack(gadget, echo, spcShiroKey);
+                if (!flag) {
+                    Platform.runLater(() -> logTextArea.appendText(Utils.log("未找到构造链")));
+                }
+            }).start();
         } else {
             this.logTextArea.appendText(Utils.log("请先手工填入key或者爆破Shiro key"));
         }
@@ -181,25 +186,24 @@ public class MainController {
             this.initAttack();
         }
 
-        boolean flag = false;
         if (!spcShiroKey.equals("")) {
-            List<String> targets = this.attackService.generateGadgetEcho(this.gadgetOpt.getItems(), this.echoOpt.getItems());
-
-            for(int i = 0; i < targets.size(); ++i) {
-                String[] t = ((String)targets.get(i)).split(":");
-                String gadget = t[0];
-                String echo = t[1];
-                flag = this.attackService.gadgetCrack(gadget, echo, spcShiroKey);
-                if (flag) {
-                    break;
+            final List<String> targets = this.attackService.generateGadgetEcho(this.gadgetOpt.getItems(), this.echoOpt.getItems());
+            final AttackService svc = this.attackService;
+            new Thread(() -> {
+                boolean flag = false;
+                for (int i = 0; i < targets.size(); ++i) {
+                    String[] t = targets.get(i).split(":");
+                    String gadget = t[0];
+                    String echo = t[1];
+                    flag = svc.gadgetCrack(gadget, echo, spcShiroKey);
+                    if (flag) break;
                 }
-            }
+                if (!flag) {
+                    Platform.runLater(() -> logTextArea.appendText(Utils.log("未找到构造链")));
+                }
+            }).start();
         } else {
             this.logTextArea.appendText(Utils.log("请先手工填入key或者爆破Shiro key"));
-        }
-
-        if (!flag) {
-            this.logTextArea.appendText(Utils.log("未找到构造链"));
         }
 
     }
@@ -248,10 +252,13 @@ public class MainController {
                 if (line.isEmpty()) continue;
                 String header[] = line.split(":", 2);
                 if (header.length < 2) continue;
-                if (header[0].trim().toLowerCase().equals("cookie")) {
-                    myheader.put("Cookie", header[1].trim());
+                String hName = header[0].trim();
+                String hVal = header[1].trim();
+                if ("cookie".equalsIgnoreCase(hName)) {
+                    String existing = myheader.get("Cookie");
+                    myheader.put("Cookie", existing == null ? hVal : existing + "; " + hVal);
                 } else {
-                    myheader.put(header[0].trim(), header[1].trim());
+                    myheader.put(hName, hVal);
                 }
             }
         }
@@ -330,8 +337,8 @@ public class MainController {
         this.bypassFilePathText.setDisable(true);
 
         ObservableList<String> bypassEchoTypes = FXCollections.observableArrayList(
-                new String[]{"Spring", "Tomcat"});
-        this.bypassEchoOpt.setValue("Spring");
+                new String[]{"Tomcat", "Spring"});
+        this.bypassEchoOpt.setValue("Tomcat");
         this.bypassEchoOpt.setItems(bypassEchoTypes);
     }
 
@@ -471,7 +478,15 @@ public class MainController {
                 String line = h.trim();
                 if (line.isEmpty()) continue;
                 String[] kv = line.split(":", 2);
-                if (kv.length == 2) myheader.put(kv[0].trim(), kv[1].trim());
+                if (kv.length < 2) continue;
+                String hName = kv[0].trim();
+                String hVal = kv[1].trim();
+                if ("cookie".equalsIgnoreCase(hName)) {
+                    String existing = myheader.get("Cookie");
+                    myheader.put("Cookie", existing == null ? hVal : existing + "; " + hVal);
+                } else {
+                    myheader.put(hName, hVal);
+                }
             }
         }
         int maxLen, timeout;
@@ -532,7 +547,7 @@ public class MainController {
         if (cmd == null || cmd.isEmpty()) { this.bypassOutputArea.appendText(Utils.log("请输入命令")); return; }
         initBypassService();
         String echoType = (String) this.bypassEchoOpt.getValue();
-        if (echoType == null) echoType = "Spring";
+        if (echoType == null) echoType = "Tomcat";
         bypassService.execCmdEcho(cmd, echoType);
     }
 

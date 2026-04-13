@@ -12,10 +12,17 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
 import java.net.Proxy;
+import java.net.Socket;
 import java.net.URL;
 import java.net.URLConnection;
+import java.net.UnknownHostException;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -26,8 +33,10 @@ import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 public class HttpUtil {
     private static final int Timeout = 5000;
@@ -140,7 +149,7 @@ public class HttpUtil {
         try {
             bis = new BufferedInputStream(inputStream);
             baos = new ByteArrayOutputStream();
-            byte[] arr = new byte[1];
+            byte[] arr = new byte[4096];
 
             int len;
             while((len = bis.read(arr)) != -1) {
@@ -321,6 +330,7 @@ public class HttpUtil {
                 httpUrlConn = hc;
             }
 
+            ((URLConnection)httpUrlConn).setConnectTimeout(timeOut);
             ((URLConnection)httpUrlConn).setReadTimeout(timeOut);
             if (contentType != null && !"".equals(contentType)) {
                 ((URLConnection)httpUrlConn).setRequestProperty("Content-Type", contentType);
@@ -431,6 +441,7 @@ public class HttpUtil {
                 httpUrlConn = hc;
             }
 
+            ((URLConnection)httpUrlConn).setConnectTimeout(timeOut);
             ((URLConnection)httpUrlConn).setReadTimeout(timeOut);
             if (contentType != null && !"".equals(contentType)) {
                 ((URLConnection)httpUrlConn).setRequestProperty("Content-Type", contentType);
@@ -623,11 +634,11 @@ public class HttpUtil {
     }
 
     public static String getHeaderByHttpRequest(String requestUrl, String encoding, HashMap<String, String> headers, int timeout) throws Exception {
-        return headerByHttpRequest(requestUrl, 5000, "GET", "text/xml", "", encoding, headers);
+        return headerByHttpRequest(requestUrl, timeout, "GET", "text/xml", "", encoding, headers);
     }
 
     public static String postHeaderByHttpRequest(String requestUrl, String encoding, String postString, HashMap<String, String> headers, int timeout) throws Exception {
-        return headerByHttpRequest(requestUrl, 5000, "POST", "text/xml", postString, encoding, headers);
+        return headerByHttpRequest(requestUrl, timeout, "POST", "text/xml", postString, encoding, headers);
     }
 
     public static boolean downloadFile(String downURL, File file) throws Exception {
@@ -677,5 +688,90 @@ public class HttpUtil {
 
     public static boolean downloadFile(String downURL, String path) throws Exception {
         return downloadFile(downURL, new File(path));
+    }
+
+    /** 全局信任所有证书（供 Hutool 等使用默认 SSLSocketFactory 的请求） */
+    public static void disableSslVerification() {
+        try {
+            TrustManager[] trustAllCerts = new TrustManager[]{new X509TrustManager() {
+                @Override
+                public X509Certificate[] getAcceptedIssuers() {
+                    return null;
+                }
+
+                @Override
+                public void checkClientTrusted(X509Certificate[] certs, String authType) {
+                }
+
+                @Override
+                public void checkServerTrusted(X509Certificate[] certs, String authType) {
+                }
+            }};
+            SSLContext sc = SSLContext.getInstance("SSL");
+            sc.init((KeyManager[]) null, trustAllCerts, new SecureRandom());
+            List<String> cipherSuites = new ArrayList<String>();
+            for (String cipher : sc.getSupportedSSLParameters().getCipherSuites()) {
+                if (cipher.indexOf("_DHE_") < 0 && cipher.indexOf("_DH_") < 0) {
+                    cipherSuites.add(cipher);
+                }
+            }
+            HttpsURLConnection.setDefaultSSLSocketFactory(new MySSLSocketFactory(sc.getSocketFactory(),
+                    cipherSuites.toArray(new String[0])));
+            HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
+        } catch (NoSuchAlgorithmException | KeyManagementException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static class MySSLSocketFactory extends SSLSocketFactory {
+        private final SSLSocketFactory sf;
+        private final String[] enabledCiphers;
+
+        private MySSLSocketFactory(SSLSocketFactory sf, String[] enabledCiphers) {
+            this.sf = sf;
+            this.enabledCiphers = enabledCiphers;
+        }
+
+        private Socket getSocketWithEnabledCiphers(Socket socket) {
+            if (this.enabledCiphers != null && socket instanceof SSLSocket) {
+                ((SSLSocket) socket).setEnabledCipherSuites(this.enabledCiphers);
+            }
+            return socket;
+        }
+
+        @Override
+        public Socket createSocket(Socket s, String host, int port, boolean autoClose) throws IOException {
+            return getSocketWithEnabledCiphers(sf.createSocket(s, host, port, autoClose));
+        }
+
+        @Override
+        public String[] getDefaultCipherSuites() {
+            return sf.getDefaultCipherSuites();
+        }
+
+        @Override
+        public String[] getSupportedCipherSuites() {
+            return enabledCiphers == null ? sf.getSupportedCipherSuites() : enabledCiphers;
+        }
+
+        @Override
+        public Socket createSocket(String host, int port) throws IOException, UnknownHostException {
+            return getSocketWithEnabledCiphers(sf.createSocket(host, port));
+        }
+
+        @Override
+        public Socket createSocket(InetAddress address, int port) throws IOException {
+            return getSocketWithEnabledCiphers(sf.createSocket(address, port));
+        }
+
+        @Override
+        public Socket createSocket(String host, int port, InetAddress localAddress, int localPort) throws IOException, UnknownHostException {
+            return getSocketWithEnabledCiphers(sf.createSocket(host, port, localAddress, localPort));
+        }
+
+        @Override
+        public Socket createSocket(InetAddress address, int port, InetAddress localaddress, int localport) throws IOException {
+            return getSocketWithEnabledCiphers(sf.createSocket(address, port, localaddress, localport));
+        }
     }
 }

